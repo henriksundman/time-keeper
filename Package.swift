@@ -6,7 +6,8 @@ import PackageDescription
 let package = Package(
     name: "TimeKeeper",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v14),
+        .iOS(.v17)
     ],
     products: [
         .executable(name: "TimeKeeper", targets: ["TimeKeeper"])

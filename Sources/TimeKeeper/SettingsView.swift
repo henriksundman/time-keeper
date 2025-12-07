@@ -40,7 +40,11 @@ struct SettingsView: View {
                         midiManager.selectSource(source)
                     }
                 }
+                #if os(macOS)
                 .listStyle(.bordered)
+                #else
+                .listStyle(.insetGrouped)
+                #endif
                 .frame(height: 200)
             }
             
@@ -55,7 +59,9 @@ struct SettingsView: View {
             }
         }
         .padding()
+        #if os(macOS)
         .frame(width: 400, height: 400)
+        #endif
         .onAppear {
             midiManager.scanSources()
         }

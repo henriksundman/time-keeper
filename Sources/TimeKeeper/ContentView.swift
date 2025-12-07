@@ -56,7 +56,9 @@ struct ContentView: View {
             .buttonStyle(.bordered)
         }
         .padding()
+        #if os(macOS)
         .frame(minWidth: 500, minHeight: 400)
+        #endif
         .sheet(isPresented: $showSettings) {
             SettingsView(midiManager: midiManager)
         }
