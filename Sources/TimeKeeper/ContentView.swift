@@ -67,7 +67,7 @@ struct ContentView: View {
                     HStack {
                         Text("Target: \(Int(rhythmEngine.fixedBPM))")
                             .monospacedDigit()
-                        Slider(value: $rhythmEngine.fixedBPM, in: 40...240, step: 1)
+                        Slider(value: $rhythmEngine.fixedBPM, in: 20...400, step: 1)
                     }
                     .frame(maxWidth: 300)
                     .padding(.top, 10)

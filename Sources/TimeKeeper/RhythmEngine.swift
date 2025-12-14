@@ -89,35 +89,49 @@ class RhythmEngine {
             targetBPM = currentBPM
         }
         
-        // Calculate deviation of the LATEST tap from the EXPECTED time.
-        // Expected time = Previous Tap + TargetInterval
-        if recentTaps.count >= 2 { // We can check deviation as soon as we have an interval if we have a target
-             // Ideally we want to compare against the *target* interval, not just the average.
-             let targetInterval = 60.0 / targetBPM
+        // Deviation Calculation
+        let lastTap = timestamps.last!
+        
+        if isFixedTempo {
+            // Fixed Mode: Compare against absolute Grid
+            guard let ref = referenceBeatTime else { return }
+            let targetInterval = 60.0 / fixedBPM
+            
+            // Expected time is nearest multiple of interval from ref
+            // t = ref + n * interval
+            // diff = (lastTap - ref)
+            // n = round(diff / interval)
+            // expected = ref + n * interval
+            
+            let timeFromRef = lastTap.timeIntervalSince(ref)
+            let n = round(timeFromRef / targetInterval)
+            let expectedTime = ref.addingTimeInterval(n * targetInterval)
+            
+            let diff = lastTap.timeIntervalSince(expectedTime)
+            lastOffset = diff
+            
+            let sensitivity = 0.2
+            deviation = (diff / sensitivity).clamped(to: -1.0...1.0)
+            
+        } else {
+            // Adaptive Mode: Compare against consistency (Previous Tap + Target Interval)
+            guard recentTaps.count >= 2 else { return }
+            
+             let targetInterval = 60.0 / currentBPM // Use current average as target? or targetBPM?
+             // targetBPM is updated above.
+             let adaptInterval = 60.0 / targetBPM
              
-             let lastTap = timestamps.last!
              let prevTap = timestamps[timestamps.count - 2]
-             let expectedTime = prevTap.addingTimeInterval(targetInterval)
+             let expectedTime = prevTap.addingTimeInterval(adaptInterval)
              
-             // Diff
              let diff = lastTap.timeIntervalSince(expectedTime)
              lastOffset = diff
-             // diff < 0 means early, > 0 means late
              
-             let sensitivity = 0.2 // 200ms window
+             let sensitivity = 0.2 
              deviation = (diff / sensitivity).clamped(to: -1.0...1.0)
              
-             // In Adaptive mode, we anchor the grid to the user's perception (or smoothed?)
-             // Using expectedTime keeps it smoother than snapping to every tap if the taps are jittery.
-             // But snapping to actual tap feels more "responsive" to tempo changes.
-             // Let's stick to the latest tap as the "truth" for now.
-             if !isFixedTempo {
-                 referenceBeatTime = lastTap
-             }
-        } else if timestamps.count == 1 {
-             if !isFixedTempo {
-                 referenceBeatTime = timestamps.first
-             }
+             // Update Reference for Visualizer (Anchor to latest tap)
+             referenceBeatTime = lastTap
         }
         
         updateMetronome()

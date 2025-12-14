@@ -17,24 +17,27 @@ struct BouncingBallView: View {
                 let height = size.height
                 
                 // Draw Ground
-                let groundY = height - ballSize / 2
+                // Define the visual ground line
+                let visualGroundY = height - 30
+                
                 ctx.stroke(Path { path in
-                    path.move(to: CGPoint(x: 0, y: groundY))
-                    path.addLine(to: CGPoint(x: width, y: groundY))
+                    path.move(to: CGPoint(x: 0, y: visualGroundY))
+                    path.addLine(to: CGPoint(x: width, y: visualGroundY))
                 }, with: .color(.gray.opacity(0.5)), lineWidth: 1)
                 
                 // Draw Trajectory
                 // We want to map X to Time.
-                // Ball X is fixed at e.g. 20% width? Or center?
-                // User said "move from right to left".
-                // This means future is to the Right. Past is to the Left.
-                // Curve moves Left.
                 
                 let ballX = size.width * 0.5
                 
-                // Calculate trajectory path
-                // t = now + (x - ballX) / speed
-                // x range: 0 to width
+                // Ball Calculation Base Height
+                // calculateY returns the center Y of the ball.
+                // We want the bottom of the ball to touch visualGroundY when yNorm is 0.
+                // Bottom = Center + Radius
+                // visualGroundY = Center + ballSize/2
+                // Center = visualGroundY - ballSize/2
+                // So pass (visualGroundY - ballSize/2) as the 'height' parameter to calculateY.
+                let ballCenterBaseY = visualGroundY - ballSize / 2
                 
                 if let ref = referenceTime, bpm > 0 {
                     let secondsPerBeat = 60.0 / bpm
@@ -48,7 +51,10 @@ struct BouncingBallView: View {
                         let timeOffset = xOffset / speed
                         let t = now.addingTimeInterval(TimeInterval(timeOffset))
                         
-                        let y = calculateY(at: t, reference: ref, period: secondsPerBeat, height: height - ballSize)
+                        let y = calculateY(at: t, reference: ref, period: secondsPerBeat, height: ballCenterBaseY)
+                        
+                        // calculateY returns center. Path should track center or bottom?
+                        // Visually, the curve tracks the center of the ball.
                         
                         if x == -50 {
                             path.move(to: CGPoint(x: x, y: y))
@@ -64,26 +70,68 @@ struct BouncingBallView: View {
                     // x = (t - now) * speed + ballX
                     // t = tap.timestamp
                     
+                    // 1. Reference Dots (The Grid)
+                    // We need to find "grid beats" that are visible on screen.
+                    // Visible time range relative to now:
+                    // Left edge x=0 -> t_min = now + (0 - ballX)/speed
+                    // Right edge x=width -> t_max = now + (width - ballX)/speed
+                    
+                    let t_min_offset = (0 - ballX) / speed
+                    let t_max_offset = (width - ballX) / speed
+                    
+                    let refOffset = now.timeIntervalSince(ref)
+                    // We want times T_grid such that (T_grid - ref) is multiple of secondsPerBeat.
+                    // T_grid = ref + k * period
+                    // Relative to now: offset_grid = T_grid - now = ref - now + k*period
+                    // offset_grid = -refOffset + k*period
+                    
+                    // We need t_min_offset <= -refOffset + k*period <= t_max_offset
+                    // t_min_offset + refOffset <= k*period <= t_max_offset + refOffset
+                    // (t_min_offset + refOffset)/period <= k <= (t_max_offset + refOffset)/period
+                    
+                    let k_min = ceil((t_min_offset + refOffset) / secondsPerBeat)
+                    let k_max = floor((t_max_offset + refOffset) / secondsPerBeat)
+                    
+                    if k_min <= k_max {
+                        for k in stride(from: k_min, through: k_max, by: 1.0) {
+                            let kDouble = Double(k)
+                            let gridTimeOffset = -refOffset + kDouble * secondsPerBeat
+                            let x = (gridTimeOffset * speed) + Double(ballX)
+                             
+                            // Draw Reference Dot (Below ground)
+                            let refRect = CGRect(x: x - 3, y: visualGroundY + 12, width: 6, height: 6)
+                            ctx.fill(Circle().path(in: refRect), with: .color(.gray)) // Increased opacity for visibility
+                        }
+                    }
+                    
+                    // 2. Played Taps (On ground)
                     for tap in taps {
                         let diff = tap.timeIntervalSince(now)
                         let x = (diff * speed) + Double(ballX)
                         
                         // Check visibility
                         if x >= -20 && x <= size.width + 20 {
-                            let tapRect = CGRect(x: x - 4, y: groundY - 4, width: 8, height: 8)
+                            let tapRect = CGRect(x: x - 4, y: visualGroundY - 4, width: 8, height: 8)
                             ctx.fill(Circle().path(in: tapRect), with: .color(.green))
                         }
                     }
                     
                     // Draw Ball at ballX, y(now)
-                    let currentY = calculateY(at: now, reference: ref, period: secondsPerBeat, height: height - ballSize)
+                    let currentY = calculateY(at: now, reference: ref, period: secondsPerBeat, height: ballCenterBaseY)
                     let ballRect = CGRect(x: ballX - ballSize/2, y: currentY - ballSize/2, width: ballSize, height: ballSize)
                     ctx.fill(Circle().path(in: ballRect), with: .color(.primary))
                     
                 } else {
                     // Resting state
-                    let ballRect = CGRect(x: ballX - ballSize/2, y: groundY - ballSize/2, width: ballSize, height: ballSize)
+                    let visualGroundY = height - 30
+                    let ballRect = CGRect(x: ballX - ballSize/2, y: visualGroundY - ballSize, width: ballSize, height: ballSize)
                     ctx.fill(Circle().path(in: ballRect), with: .color(.secondary))
+                    
+                    // Draw ground too for consistency
+                     ctx.stroke(Path { path in
+                        path.move(to: CGPoint(x: 0, y: visualGroundY))
+                        path.addLine(to: CGPoint(x: width, y: visualGroundY))
+                    }, with: .color(.gray.opacity(0.5)), lineWidth: 1)
                 }
             }
         }
