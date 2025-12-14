@@ -3,6 +3,7 @@ import SwiftUI
 struct TempoGaugeView: View {
     let deviation: Double // -1.0 to 1.0
     let isSteady: Bool
+    let offset: TimeInterval // in seconds
     
     var body: some View {
         VStack {
@@ -47,6 +48,20 @@ struct TempoGaugeView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: 300)
+            
+            Text(offsetFormatted)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(colorForDeviation)
+                .padding(.top, 4)
+        }
+    }
+    
+    var offsetFormatted: String {
+        let ms = Int(offset * 1000)
+        if ms > 0 {
+            return "+\(ms) ms"
+        } else {
+            return "\(ms) ms"
         }
     }
     
@@ -61,9 +76,9 @@ struct TempoGaugeView: View {
 
 #Preview {
     VStack {
-        TempoGaugeView(deviation: 0.0, isSteady: true)
-        TempoGaugeView(deviation: -0.5, isSteady: false)
-        TempoGaugeView(deviation: 0.8, isSteady: false)
+        TempoGaugeView(deviation: 0.0, isSteady: true, offset: 0.0)
+        TempoGaugeView(deviation: -0.5, isSteady: false, offset: -0.1)
+        TempoGaugeView(deviation: 0.8, isSteady: false, offset: 0.16)
     }
     .padding()
 }

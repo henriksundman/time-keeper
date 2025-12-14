@@ -45,8 +45,28 @@ struct ContentView: View {
             }
             
             // Interaction Gauge
-            TempoGaugeView(deviation: rhythmEngine.deviation, isSteady: rhythmEngine.isSteady)
+            TempoGaugeView(deviation: rhythmEngine.deviation, isSteady: rhythmEngine.isSteady, offset: rhythmEngine.lastOffset)
                 .padding(.horizontal)
+            
+            // Mode Control
+            VStack {
+                Picker("Mode", selection: $rhythmEngine.isFixedTempo) {
+                    Text("Adaptive").tag(false)
+                    Text("Fixed").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 200)
+                
+                if rhythmEngine.isFixedTempo {
+                    HStack {
+                        Text("Target: \(Int(rhythmEngine.fixedBPM))")
+                            .monospacedDigit()
+                        Slider(value: $rhythmEngine.fixedBPM, in: 40...240, step: 1)
+                    }
+                    .frame(maxWidth: 300)
+                    .padding(.top, 10)
+                }
+            }
             
             Spacer()
             
@@ -60,7 +80,7 @@ struct ContentView: View {
         .frame(minWidth: 500, minHeight: 400)
         #endif
         .sheet(isPresented: $showSettings) {
-            SettingsView(midiManager: midiManager)
+            SettingsView(midiManager: midiManager, rhythmEngine: rhythmEngine)
         }
         .onAppear {
             // Bind MIDI to Engine
