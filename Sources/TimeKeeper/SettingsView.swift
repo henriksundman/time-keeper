@@ -44,34 +44,6 @@ struct SettingsView: View {
                     .frame(height: 200)
                 }
                 
-                Divider()
-                
-                Text("Metronome")
-                    .font(.headline)
-                
-                Picker("Click Mode", selection: $rhythmEngine.clickMode) {
-                    Text("Off").tag(RhythmEngine.ClickMode.off)
-                    Text("On").tag(RhythmEngine.ClickMode.on)
-                    Text("Adaptive").tag(RhythmEngine.ClickMode.adaptive)
-                }
-                .pickerStyle(.segmented)
-                
-                if rhythmEngine.clickMode == .adaptive {
-                    VStack(alignment: .leading) {
-                        Text("Silent Range: +/- \(Int(rhythmEngine.silentRange * 1000)) ms")
-                        Slider(value: $rhythmEngine.silentRange, in: 0.0...0.050, step: 0.001) {
-                            Text("Silent Range")
-                        } minimumValueLabel: {
-                            Text("0ms")
-                        } maximumValueLabel: {
-                            Text("50ms")
-                        }
-                        Text("Click fades in when deviation exceeds this range.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
                 Spacer()
             }
             .padding()

@@ -10,14 +10,14 @@ class RhythmEngine {
     
     var currentBPM: Double = 0.0
     var targetBPM: Double = 0.0 // Could be set explicitly or inferred
-    var isFixedTempo: Bool = false {
+    var isFixedTempo: Bool = true {
         didSet { updateMetronome() }
     }
     var fixedBPM: Double = 120.0 {
         didSet { updateMetronome() }
     }
     
-    var clickMode: ClickMode = .off {
+    var clickMode: ClickMode = .on {
         didSet { updateMetronome() }
     }
     var silentRange: TimeInterval = 0.010 // +/- 10ms
@@ -27,13 +27,24 @@ class RhythmEngine {
     var isSteady: Bool = false
     var deviation: Double = 0.0 // Value between -1.0 (early) and 1.0 (late). 0.0 is perfect.
     var lastOffset: TimeInterval = 0.0 // Raw difference in seconds (negative = early, positive = late)
+    var referenceBeatTime: Date? // Anchor for visualizer (Phase)
     
-    private var timestamps: [Date] = []
-    private let historySize = 5 // Number of beats to average
+    var isActive: Bool = false {
+        didSet {
+            if !isActive {
+                reset()
+            }
+            updateMetronome()
+        }
+    }
+    
+    var timestamps: [Date] = [] // Public for visualization
+    private let maxHistory = 50 // Keep more for visualizer
+    private let calculationWindow = 5 // Use few for responsive tempo calc
     
     func registerTap(at timestamp: Date) {
         timestamps.append(timestamp)
-        if timestamps.count > historySize {
+        if timestamps.count > maxHistory {
             timestamps.removeFirst()
         }
         
@@ -45,8 +56,13 @@ class RhythmEngine {
         
         // Calculate intervals
         var intervals: [TimeInterval] = []
-        for i in 1..<timestamps.count {
-            let interval = timestamps[i].timeIntervalSince(timestamps[i-1])
+        // Use only the last N taps for calculation
+        let recentTaps = timestamps.suffix(calculationWindow)
+        guard recentTaps.count >= 2 else { return }
+        
+        let tapArray = Array(recentTaps)
+        for i in 1..<tapArray.count {
+            let interval = tapArray[i].timeIntervalSince(tapArray[i-1])
             intervals.append(interval)
         }
         
@@ -68,7 +84,7 @@ class RhythmEngine {
         
         // Calculate deviation of the LATEST tap from the EXPECTED time.
         // Expected time = Previous Tap + TargetInterval
-        if timestamps.count >= 2 { // We can check deviation as soon as we have an interval if we have a target
+        if recentTaps.count >= 2 { // We can check deviation as soon as we have an interval if we have a target
              // Ideally we want to compare against the *target* interval, not just the average.
              let targetInterval = 60.0 / targetBPM
              
@@ -83,7 +99,20 @@ class RhythmEngine {
              
              let sensitivity = 0.2 // 200ms window
              deviation = (diff / sensitivity).clamped(to: -1.0...1.0)
+             
+             // In Adaptive mode, we anchor the grid to the user's perception (or smoothed?)
+             // Using expectedTime keeps it smoother than snapping to every tap if the taps are jittery.
+             // But snapping to actual tap feels more "responsive" to tempo changes.
+             // Let's stick to the latest tap as the "truth" for now.
+             if !isFixedTempo {
+                 referenceBeatTime = lastTap
+             }
+        } else if timestamps.count == 1 {
+             if !isFixedTempo {
+                 referenceBeatTime = timestamps.first
+             }
         }
+        
         updateMetronome()
     }
     
@@ -91,6 +120,10 @@ class RhythmEngine {
         // Update BPM
         if isFixedTempo {
              metronome.bpm = fixedBPM
+             // We wait for metronome.onStart to set referenceBeatTime for perfect sync!
+             // if referenceBeatTime == nil || !metronome.isPlaying {
+             //      referenceBeatTime = Date()
+             // }
         } else {
              // If adaptive, maybe track current BPM? 
              // For now, if not fixed, we don't really have a stable target to click to,
@@ -101,6 +134,12 @@ class RhythmEngine {
         }
         
         // Mode Logic
+        // "In adaptive tempo mode, disable the click for now"
+        if !isActive || !isFixedTempo {
+            metronome.stop()
+            return
+        }
+        
         switch clickMode {
         case .off:
             metronome.stop()
@@ -124,13 +163,29 @@ class RhythmEngine {
         }
     }
     
+    init() {
+        // Ensure initial state is valid
+        // Auto-start disabled. User must press Play.
+        metronome.onStart = { [weak self] startTime in
+            guard let self = self, self.isFixedTempo else { return }
+            self.referenceBeatTime = startTime
+        }
+    }
+    
     func reset() {
         timestamps.removeAll()
         currentBPM = 0
         deviation = 0
         lastOffset = 0
+        referenceBeatTime = nil
         metronome.stop()
     }
+    
+    // Helper to start fixed tempo anchor if needed
+    // Called when toggling to Fixed or changing Fixed BPM
+    // For now, let's just rely on the metronome start time? 
+    // Or we can just set referenceBeatTime = Date() when we start fixed mode.
+    // Ideally this is handled in updateMetronome or property observer.
 }
 
 extension Comparable {

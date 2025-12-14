@@ -24,6 +24,7 @@ class Metronome {
     
     private(set) var isPlaying = false
     private var nextClickTime: AVAudioTime?
+    private var generation = 0
     
     init() {
         engine = AVAudioEngine()
@@ -64,6 +65,7 @@ class Metronome {
         }
         
         isPlaying = true
+        generation += 1
         player.play()
         
         // Schedule first click immediately (or slightly in future to be safe)
@@ -72,19 +74,27 @@ class Metronome {
         // Ideally we want to sync this with RhythmEngine's concept of time.
         // For now, let's just run a free loop.
         
-        scheduleClicks()
+        scheduleClicks(forGenerator: generation)
     }
     
     func stop() {
+        print("Metronome: Stop called")
         isPlaying = false
+        generation += 1 // Invalidate current loop
         player.stop()
         player.reset() // Clears scheduled events
         nextClickTime = nil
     }
     
-    private func scheduleClicks() {
-        guard isPlaying, let buffer = buffer, let format = processingFormat else { 
-            print("Metronome: Early return - isPlaying: \(isPlaying), buffer: \(buffer != nil), format: \(processingFormat != nil)")
+    var onStart: ((Date) -> Void)?
+    
+    private func scheduleClicks(forGenerator gen: Int) {
+        guard isPlaying, gen == generation, let buffer = buffer, let format = processingFormat else { 
+            if gen != generation {
+                print("Metronome: Stale generation \(gen) vs \(generation). Stopping loop.")
+            } else {
+                print("Metronome: Early return - isPlaying: \(isPlaying), buffer: \(buffer != nil), format: \(processingFormat != nil)")
+            }
             return 
         }
         
@@ -96,34 +106,43 @@ class Metronome {
         
         // If we don't have a next time, start "now"
         var nowMatches = false
-        let now: AVAudioTime
-        if let lastRenderTime = player.lastRenderTime {
-            now = lastRenderTime
+        var startTime: AVAudioTime
+        
+        if let next = nextClickTime {
+            startTime = next
         } else {
-            // Player hasn't started rendering yet?
-            // Fallback to sample time 0 is risky if engine has been running.
-            // But if engine is running, lastRenderTime should be valid unless player isn't playing.
-            print("Metronome: player.lastRenderTime is nil")
-            now = AVAudioTime(sampleTime: 0, atRate: format.sampleRate)
+            // First click!
+            // Use host time for immediate start
+            let hostTime = mach_absolute_time()
+            let nowAudio = AVAudioTime(hostTime: hostTime)
+            
+            // Allow a tiny safety margin (e.g. 50ms) for the scheduler to process
+            // But getting the actual date is tricky if we add offset.
+            // Let's rely on hostTime which is "now".
+            // Adding a small offset in samples to be safe.
+            // 0.05s * sampleRate
+            let offsetSamples = AVAudioFramePosition(0.05 * format.sampleRate)
+            startTime = AVAudioTime(hostTime: hostTime, sampleTime: nowAudio.sampleTime + offsetSamples, atRate: format.sampleRate)
+            
+            // Notify listener (RhythmEngine) of the EXACT start time (Date)
+            // hostTime -> Date
+            // Date() is roughly now.
+            // Ideally we convert mach absolute time to Date.
+            // Or we just capture Date() + 0.05s
+            DispatchQueue.main.async {
+                self.onStart?(Date().addingTimeInterval(0.05))
+            }
         }
         
-        var startTime = nextClickTime ?? now
-        
-        // Clean up backward times just in case
-        if startTime.sampleTime < now.sampleTime {
-            print("Metronome: startTime fell behind. Resetting to now.")
-            startTime = now
-        }
-        
-        // For first start, maybe push it slightly ahead to avoid "late" render
-        if nextClickTime == nil {
-             // 0.1s ahead
-             startTime = AVAudioTime(sampleTime: now.sampleTime + AVAudioFramePosition(0.1 * format.sampleRate), atRate: format.sampleRate)
-        }
+        // Clean up backward times just in case (mostly for nextClickTime iteration logic if drift happens)
+        // But for hostTime-based start, we are by definition "future".
         
         // Schedule a few beats ahead
         for i in 0..<4 {
-             player.scheduleBuffer(buffer, at: startTime, options: .interrupts) {
+             // IMPORT: Do NOT use .interrupts here, or it wipes the previous iterations!
+             var options: AVAudioPlayerNodeBufferOptions = []
+             
+             player.scheduleBuffer(buffer, at: startTime, options: options) {
                  // Completion handler (optional)
              }
              
@@ -138,7 +157,7 @@ class Metronome {
         // Roughly wait half the duration of the scheduled clicks
         let waitSeconds = (secondsPerBeat * 2.0)
         queue.asyncAfter(deadline: .now() + waitSeconds) { [weak self] in
-            self?.scheduleClicks()
+            self?.scheduleClicks(forGenerator: gen)
         }
     }
     

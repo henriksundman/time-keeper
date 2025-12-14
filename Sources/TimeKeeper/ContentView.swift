@@ -44,9 +44,15 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             
+            // Visualizer
+            BouncingBallView(bpm: rhythmEngine.isFixedTempo ? rhythmEngine.fixedBPM : rhythmEngine.currentBPM, referenceTime: rhythmEngine.referenceBeatTime, taps: rhythmEngine.timestamps)
+                .frame(height: 120)
+                .padding(.horizontal)
+            
             // Interaction Gauge
             TempoGaugeView(deviation: rhythmEngine.deviation, isSteady: rhythmEngine.isSteady, offset: rhythmEngine.lastOffset)
                 .padding(.horizontal)
+            
             
             // Mode Control
             VStack {
@@ -66,18 +72,58 @@ struct ContentView: View {
                     .frame(maxWidth: 300)
                     .padding(.top, 10)
                 }
+                
+                // Only show Metronome controls in Fixed Mode
+                if rhythmEngine.isFixedTempo {
+                    Divider()
+                        .frame(width: 200)
+                        .padding(.vertical)
+                    
+                    VStack(spacing: 12) {
+                        Picker("Metronome", selection: $rhythmEngine.clickMode) {
+                            Text("Off").tag(RhythmEngine.ClickMode.off)
+                            Text("On").tag(RhythmEngine.ClickMode.on)
+                            Text("Adaptive").tag(RhythmEngine.ClickMode.adaptive)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 200)
+                        
+                        if rhythmEngine.clickMode == .adaptive {
+                            VStack(spacing: 4) {
+                                HStack {
+                                    Text("Silent Range")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("+/- \(Int(rhythmEngine.silentRange * 1000)) ms")
+                                        .font(.caption)
+                                        .monospacedDigit()
+                                }
+                                
+                                Slider(value: $rhythmEngine.silentRange, in: 0.0...0.050, step: 0.001)
+                            }
+                            .frame(maxWidth: 250)
+                        }
+                    }
+                }
             }
             
             Spacer()
             
-            Button("Reset") {
-                rhythmEngine.reset()
+            Button(action: {
+                rhythmEngine.isActive.toggle()
+            }) {
+                Image(systemName: rhythmEngine.isActive ? "stop.fill" : "play.fill")
+                    .font(.largeTitle)
+                    .frame(width: 60, height: 60)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
+            .tint(rhythmEngine.isActive ? .red : .green)
+            .padding(.bottom)
         }
         .padding()
         #if os(macOS)
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 500, minHeight: 450)
         #endif
         .sheet(isPresented: $showSettings) {
             SettingsView(midiManager: midiManager, rhythmEngine: rhythmEngine)
