@@ -44,6 +44,25 @@ struct SettingsView: View {
                     .frame(height: 200)
                 }
                 
+                Divider()
+                
+                Text("Input Settings")
+                    .font(.headline)
+                
+                VStack(alignment: .leading) {
+                    Text("Chord Debounce: \(Int(rhythmEngine.chordDebounceInterval * 1000)) ms")
+                    Slider(value: $rhythmEngine.chordDebounceInterval, in: 0.0...0.100, step: 0.005) {
+                        Text("Chord Debounce")
+                    } minimumValueLabel: {
+                        Text("0ms")
+                    } maximumValueLabel: {
+                        Text("100ms")
+                    }
+                    Text("Prevents multiple notes in a chord from registering as multiple beats.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
                 Spacer()
             }
             .padding()

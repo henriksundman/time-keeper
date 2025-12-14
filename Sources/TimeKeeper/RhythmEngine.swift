@@ -42,7 +42,14 @@ class RhythmEngine {
     private let maxHistory = 50 // Keep more for visualizer
     private let calculationWindow = 5 // Use few for responsive tempo calc
     
+    var chordDebounceInterval: TimeInterval = 0.030 // 30ms default
+    
     func registerTap(at timestamp: Date) {
+        // Debounce: If tap is too close to the last one, ignore it.
+        if let last = timestamps.last, timestamp.timeIntervalSince(last) < chordDebounceInterval {
+             return
+        }
+        
         timestamps.append(timestamp)
         if timestamps.count > maxHistory {
             timestamps.removeFirst()
