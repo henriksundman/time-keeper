@@ -125,12 +125,24 @@ class Metronome {
             startTime = AVAudioTime(hostTime: hostTime, sampleTime: nowAudio.sampleTime + offsetSamples, atRate: format.sampleRate)
             
             // Notify listener (RhythmEngine) of the EXACT start time (Date)
-            // hostTime -> Date
-            // Date() is roughly now.
-            // Ideally we convert mach absolute time to Date.
-            // Or we just capture Date() + 0.05s
+            
+            // We need to account for output latency!
+            // The scheduled time is the "render" time. The sound comes out later.
+            // approxLatency = engine.outputNode.presentationLatency
+            // on macOS/iOS, presentationLatency can be non-zero (especially with Bluetooth).
+            // If we ignore it, the visualizer (0ms deviation) thinks the beat is earlier than the sound.
+            
+            let latency = self.engine.outputNode.presentationLatency
+            let safetyOffset = 0.05
+            // Add a conservative guess for IO Buffer / Processing overhead not captured in presentationLatency
+            // "Noticeable amount" suggests ~20-30ms.
+            let processingOverhead = 0.025 
+            
+            // Total delay from "now" (Date()) until sound hits ear:
+            // safetyOffset (we wait this long to render) + latency (hardware buffer) + overhead
+            
             DispatchQueue.main.async {
-                self.onStart?(Date().addingTimeInterval(0.05))
+                self.onStart?(Date().addingTimeInterval(safetyOffset + latency + processingOverhead))
             }
         }
         
