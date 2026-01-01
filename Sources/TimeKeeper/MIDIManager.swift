@@ -21,6 +21,21 @@ class MIDIManager {
         }
     }
     
+    struct MIDINoteEvent: Equatable {
+        let id = UUID()
+        let note: UInt8
+        let velocity: UInt8
+        
+        static func == (lhs: MIDINoteEvent, rhs: MIDINoteEvent) -> Bool {
+            lhs.id == rhs.id
+        }
+    }
+    
+    var lastReceivedNote: MIDINoteEvent?
+    
+    var minNote: Int = 0 
+    var maxNote: Int = 127
+    
     private var client = MIDIClientRef()
     private var inputPort = MIDIPortRef()
     private let logger = Logger(subsystem: "com.antigravity.TimeKeeper", category: "MIDIManager")
@@ -121,6 +136,15 @@ class MIDIManager {
             let isNoteOn = (status & 0xF0) == 0x90 && velocity > 0
             
             if isNoteOn {
+                DispatchQueue.main.async {
+                    self.lastReceivedNote = MIDINoteEvent(note: note, velocity: velocity)
+                }
+
+                // Filter by note range
+                if Int(note) < minNote || Int(note) > maxNote {
+                    return
+                }
+                
                 DispatchQueue.main.async {
                     self.logger.debug("Note On: \(note)")
                     self.onNoteOn?(Date())

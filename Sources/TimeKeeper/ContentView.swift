@@ -86,7 +86,7 @@ struct ContentView: View {
                             Text("Adaptive").tag(RhythmEngine.ClickMode.adaptive)
                         }
                         .pickerStyle(.segmented)
-                        .frame(maxWidth: 200)
+                        .frame(maxWidth: 250)
                         
                         if rhythmEngine.clickMode == .adaptive {
                             VStack(spacing: 4) {
@@ -123,7 +123,7 @@ struct ContentView: View {
         }
         .padding()
         #if os(macOS)
-        .frame(minWidth: 500, minHeight: 450)
+        .frame(minWidth: 1240, minHeight: 880)
         #endif
         .sheet(isPresented: $showSettings) {
             SettingsView(midiManager: midiManager, rhythmEngine: rhythmEngine)
